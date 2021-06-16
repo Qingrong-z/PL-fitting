@@ -15,6 +15,7 @@ m_e=0.067; %Effective mass of electrons, relative to the free electron mass
 m_h=0.47; %Effective mass of holes, relative to the free electron mass
 D=3; %Dimensionality of bulk
 
+
 %% Choose the sample
 %200nm
 % day='2019_07_05';
@@ -23,10 +24,10 @@ D=3; %Dimensionality of bulk
 % laser=532;
 
 %100nm
-day='2019_12_10';
-sample='1927_2_1';
-detector='vis';
-laser=532;
+% day='2019_12_10';
+% sample='1927_2_1';
+% detector='vis';
+% laser=532;
 
 %50nm
 % day='2019_12_10';
@@ -35,10 +36,10 @@ laser=532;
 % laser=532;
 
 %20nm
-% day='2019_07_05';
-% sample='1872_1_4';
-% detector='vis';
-% laser=532;
+day='2019_07_05';
+sample='1872_1_4';
+detector='vis';
+laser=532;
 
 [data, power, spot_surface, Int, E]=load_data_PL(day,sample,detector,laser);
 
@@ -111,8 +112,8 @@ switch day
                 Int(points_removed)=[];
                 power(points_removed)=[]; %power is in W.cm^-2
                 
-                E_min = 1.49;
-                E_max = 1.54;
+                E_min = 1.47;
+                E_max = 1.52;
                 E_ratio = 1.51;
                 E_plot=[1.35 1.6];
                 Eg = 1.424; %Band gap (eV)
@@ -140,8 +141,8 @@ switch day
                 Int(points_removed)=[];
                 power(points_removed)=[]; %power is in W.cm^-2
                 
-                E_min = 1.47;
-                E_max = 1.54;
+                E_min = 1.48;
+                E_max = 1.55;
                 E_plot=[1.35 1.6];
                 Eg = 1.424; %Band gap (eV)
                 
@@ -163,15 +164,15 @@ colors=lines(length(Int));
 P_inc=power/(1000*spot_surface); % incident power (W.cm^-2)
 E_laser=h*c/(q*laser*1e-9); %Energy of the laser (eV)
 
-%% Consider different interval range
-E_mid = (E_min + E_max)/2;
-[radius_init,step] = radius_step(E_min,E_max);
-radius = radius_init;
-for i = [1:step]
-    E_min = E_mid - radius;
-    E_max = E_mid + radius;
-    radius = radius + 0.01;
-    
+%% Consider different interval
+E_min_init = E_min;
+E_max_init = E_max;
+Inv_diff = 0.01; % Fit the interval from -0.01 to +0.01
+E_min = E_min_init-0.03;
+E_max = E_max_init-0.03;
+for i = [1:7]
+    E_min = E_min + Inv_diff;
+    E_max = E_max + Inv_diff;
 %% Calculate the ratios with band filling
 x_init=[T_L, 1.2, 1.2];
 x_min=[T_L-10, 0.8, 0.8];
@@ -218,7 +219,7 @@ T(i,1)=T_L;
 mu(i,1)=mu_ref(i);
 
 
-%% log fit
+%% Log ratio fit
 for i3 = 2:length(Int)
     y = log(ratio{1,i3}(Einv(E_min):Einv(E_max)));
     x = E(Einv(E_min):Einv(E_max));
@@ -286,7 +287,7 @@ for i6 = 1:length(Int)
     y = log(ratio{1,i6}(Einv(E_min):Einv(E_max)));
     x = E(Einv(E_min):Einv(E_max));
     modelfun = @(a,x) log(dmu_T_ratio(a(1), a(2), mu_ref_log(i),x,T_L,m_e,m_h,Eg,D));
-    options = statset('FunValCheck','off','DerivStep',10^-12,'robust','on','MaxIter',3000);
+    options = statset('FunValCheck','off','DerivStep',10^-12,'robust','on');
     beta0_log{i6} = [T_log_init(i6);delta_mu_log_init(i6)];
     [beta_log{i6},r,J,cov] = nlinfit(x,y,modelfun,beta0_log{i6},options);
     T_log(i,i6) = beta_log{i6}(1,1);
@@ -298,40 +299,24 @@ for i6 = 1:length(Int)
     delta_mu_error_log(i,i6) = (ci_log{i,i6}(2,2)-ci_log{i,i6}(2,1))/2;
 end
 
+
 end
 
-%% Error on interval limits
-% for i4 = 1:length(Int)
-%     y = log(ratio{1,i4}(Einv(E_min):Einv(E_max)));
-%     x = E(Einv(E_min):Einv(E_max));
-%     modelfun = @(a,x) log(dmu_T_ratio(T_log(5,i4), delta_mu_log(5,i4), mu_ref_log(i),x,T_L,m_e,m_h,Eg,D));
-%     options = statset('FunValCheck','off','DerivStep',10^-12,'robust','on','MaxIter',3000);
-%     beta0_log{i4} = [T_log_init(i4);delta_mu_log_init(i4)];
-%     [beta_log{i4},r,J,cov] = nlinfit(x,y,modelfun,beta0_log{i4},options);
-%     T_log(i,i4) = beta_log{i4}(1,1);
-%     delta_mu_log(i,i4) = beta_log{i4}(2,1);
-%     mu_nfit_log(i,i4) = beta_log{i4}(2,1)+mu_ref_log(i);
-%     ci_log{i,i4} = nlparci(beta_log{i4},r,'covar',cov);
-%     cj_log{i,i4} = nlparci(beta_log{i4},r,'Jacobian',J);
-%     T_error_log(i,i4) = (ci_log{i,i4}(1,2)-ci_log{i,i4}(1,1))/2;
-%     delta_mu_error_log(i,i4) = (ci_log{i,i4}(2,2)-ci_log{i,i4}(2,1))/2;
-% end
-%% Error calculation
-% for i=1:length(Int)
-%     T_log_raw(i) = T_log(2,i);
-%     T_plus_log(i) = T_log(3,i);
-%     T_min_log(i) = T_log(1,i);
-%     delta_T_interval_log(i) = max(abs(T_plus_log(i)-T_log_raw(i)),abs(T_log_raw(i)-T_min_log(i)));
-%     delta_T_init(i) = T_error_log(2,i);
-%     delta_T_log(i) = delta_T_interval_log(i)+delta_T_init(i);
-%     
-%     dmu_log(i) = delta_mu_log(2,i);
-%     dmu_plus_log(i) = delta_mu_log(3,i);
-%     dmu_min_log(i) = delta_mu_log(1,i);
-%     delta_dmu_interval_log(i) = max(abs(dmu_plus_log(i)-dmu_log(i)),abs(dmu_log(i)-dmu_min_log(i)));
-%     delta_mu_log_init(i) = delta_mu_error_log(2,i);
-%     delta_dmu_log(i) = delta_dmu_interval_log(i)+delta_mu_log_init(i);
-% end
+for i=1:length(Int)
+    T_log_raw(i) = T_log(2,i);
+    T_plus_log(i) = T_log(3,i);
+    T_min_log(i) = T_log(1,i);
+    delta_T_interval_log(i) = max(abs(T_plus_log(i)-T_log_raw(i)),abs(T_log_raw(i)-T_min_log(i)));
+    delta_T_init(i) = T_error_log(2,i);
+    delta_T_log(i) = delta_T_interval_log(i)+delta_T_init(i);
+    
+    dmu_log(i) = delta_mu_log(2,i);
+    dmu_plus_log(i) = delta_mu_log(3,i);
+    dmu_min_log(i) = delta_mu_log(1,i);
+    delta_dmu_interval_log(i) = max(abs(dmu_plus_log(i)-dmu_log(i)),abs(dmu_log(i)-dmu_min_log(i)));
+    delta_mu_log_init(i) = delta_mu_error_log(2,i);
+    delta_dmu_log(i) = delta_dmu_interval_log(i)+delta_mu_log_init(i);
+end
 
 
 %% Absorbed power
@@ -346,33 +331,14 @@ Barriers_to_GaAs=0.1; % Estimated fraction of carriers generated in the barriers
 A_laser=A_laser_GaAs+Barriers_to_GaAs*A_laser_barriers; % Equivalent absorptivity in the absorber
 P_abs=A_laser*P_inc; %Equivalent absorbed power in the absorber
 P_gen=(P_abs/thickness)*(1-Eg/E_laser);
-
-% % Errors
-% delta_power_rel=0.1; %relative error on power
-% delta_spot_surface_rel=0.2; %relative error on spot_surface
-% delta_A_GaAs=max(abs(A_laser_GaAs_plus1-A_laser_GaAs),abs(A_laser_GaAs-A_laser_GaAs_min1));
-% delta_A_laser_rel=(delta_A_GaAs+0.1*A_laser_barriers)/A_laser; %relative error on absorptivity
-% delta_P_abs_rel=sqrt(delta_power_rel^2+delta_spot_surface_rel^2+delta_A_laser_rel^2); %relative error on the absorbed power: systematic error
-% delta_P_gen_rel=delta_P_abs_rel;
-%% Error propagation
-
-% % Calculate Q
-% [Q_fit_raw,delta_Q_fit_raw]=linfitxy([T_raw-T_L],[P_abs],[delta_T_raw],zeros(length(T_raw),1));
-% Q_raw=Q_fit_raw(1);
-% Q0=Q_fit_raw(2);
-% delta_Q_fit_raw_rel=delta_Q_fit_raw(1)/Q_fit_raw(1);
-% delta_Q_raw_rel=sqrt(delta_P_abs_rel^2+delta_Q_fit_raw_rel^2);
-% delta_Q_raw=Q_raw*delta_Q_raw_rel;
-
-% Modify Q_raw into Q
-% delta_T_0=sqrt(delta_T_raw(1)^2+(P_abs(1)/Q_raw)^2*(delta_P_abs_rel^2+delta_Q_raw_rel^2));
-% T(1)=T_L+P_abs(1)/Q_raw;
-% delta_T(1)=sqrt(delta_T_0^2+(P_abs(1)/Q_raw)^2*(delta_P_abs_rel^2+delta_Q_raw_rel^2));
 %% Plots
 
+
 % figure
-% title('f(deltamu);initial set')
-% semilogx(P_abs, mu_ref_nfit_dmu_init(i),'LineWidth',3)
+% title('log ratio')
+% semilogx(P_abs, mu_ref_log_init(2,:),'LineWidth',3)
+% hold on
+% errorbar(P_abs,mu_ref_log_init(2,:),mu_ref_log_raw_init_fiterror,mu_ref_log_raw_init_fiterror,[],[], '+', 'markerSize',10,'color', colors(2,:),'LineWidth', 3);
 % ylabel('$\mu_{ref}$ (eV)','Interpreter','Latex')
 % xlabel('$P_{abs} \: (\mathrm{W.cm^{-2})}$','Interpreter','Latex')
 % box on
@@ -393,11 +359,11 @@ P_gen=(P_abs/thickness)*(1-Eg/E_laser);
 % mu_slope_dmu_nfit = p_dmu2(1);
 % mu_ref_dmu_nfit0 = p_dmu2(2);
 % mu_dmu_nfitdata = mu_ref_dmu_nfit0+mu_slope_dmu_nfit*log(P_abs);
-% 
-% 
-% 
-% 
-% % Plots
+
+
+
+
+% Plots
 % figure
 % % title('f(\Delta\mu)')
 % hold on
@@ -413,9 +379,7 @@ P_gen=(P_abs/thickness)*(1-Eg/E_laser);
 % set(gca,'XMinorTick','on','YMinorTick','on')
 % set(gcf,'color','w')
 % box on
-% % 
-% % 
-% % 
+
 % figure
 % % title('f(\Delta\mu)')
 % % scatter(P_abs, dmu_dmu,200,'x','MarkerEdgeColor', colors(1,:),'LineWidth',3);
@@ -432,7 +396,7 @@ P_gen=(P_abs/thickness)*(1-Eg/E_laser);
 % set(gca,'XMinorTick','on','YMinorTick','on')
 % set(gca,'XScale','log')
 % set(gcf,'color','w')
-% 
+
 % mu_ref_dmu_init = mu_ref_log(2)-var_mu_ref_log(2);
 % for i=[1:3]
 %     mu_r(i) = mu_ref_dmu_init;
@@ -454,51 +418,127 @@ P_gen=(P_abs/thickness)*(1-Eg/E_laser);
 % box on
 % end
 
-%% Error comparison
-radius = radius_init;
-figure
-for i = 1:step
-    E_min = E_mid - radius;
-    E_max = E_mid + radius;
-    radius = radius + 0.01;
-    T_error_log(i,1) = NaN;
-    plot(P_abs, T_error_log(i,:),'LineWidth',2);
-    leg{i} = [num2str(E_min) '-' num2str(E_max)];
-    hold on
-end
-hold on
-ylabel('$T$ error (K)','Interpreter','Latex')
-xlabel('$P_{abs} \: (\mathrm{W.cm^{-2})}$','Interpreter','Latex')
-box on
-xlim([0 P_abs(end)])
-ylim([0 0.7])
-% ylim([0 inf])
-set(gca,'Fontsize',16)
-set(gca,'XMinorTick','on','YMinorTick','on')
-set(gcf,'color','w')
-legend(leg,'location','southeast')
-box on
 
-radius = radius_init;
+E_min = E_min_init-0.03;
+E_max = E_max_init-0.03;
 figure
-for i = 1:step
-    E_min = E_mid - radius;
-    E_max = E_mid + radius;
-    radius = radius + 0.01;
-    plot(P_abs, delta_mu_error_log(i,:),'LineWidth',2);
-    leg{i} = [num2str(E_min) '-' num2str(E_max)];
-    hold on
+for i = 1:7
+E_min = E_min + Inv_diff;
+E_max = E_max + Inv_diff;
+plot(P_abs, delta_mu_error_log(i,:),'LineWidth',2);
+leg{i} = [num2str(E_min) '-' num2str(E_max)];
+hold on
 end
 hold on
 ylabel('$\Delta\mu$ error (eV)','Interpreter','Latex')
 xlabel('$P_{abs} \: (\mathrm{W.cm^{-2})}$','Interpreter','Latex')
 box on
 xlim([0 P_abs(end)])
-ylim([0 0.0003])
-% ylim([0 inf])
+ylim([0 inf])
 set(gca,'Fontsize',16)
 set(gca,'XMinorTick','on','YMinorTick','on')
 set(gcf,'color','w')
 legend(leg,'location','southeast')
 box on
+
+
+E_min = E_min_init-0.03;
+E_max = E_max_init-0.03;
+figure
+for i = 1:7
+E_min = E_min + Inv_diff;
+E_max = E_max + Inv_diff;
+plot(P_abs, T_error_log(i,:),'LineWidth',2);
+leg{i} = [num2str(E_min) '-' num2str(E_max)];
+hold on
+end
+hold on
+ylabel('$T$ error (K)','Interpreter','Latex')
+xlabel('$P_{abs} \: (\mathrm{W.cm^{-2})}$','Interpreter','Latex')
+box on
+xlim([P_abs(1) P_abs(end)])
+ylim([0 inf])
+set(gca,'Fontsize',16)
+set(gca,'XMinorTick','on','YMinorTick','on')
+set(gcf,'color','w')
+legend(leg,'location','southeast')
+box on
+
+E_min = E_min_init-0.03;
+E_max = E_max_init-0.03;
+figure
+for i = 1:7
+E_min = E_min + Inv_diff;
+E_max = E_max + Inv_diff;
+plot(P_abs, T_log(i,:)-T_L,'LineWidth',2);
+leg{i} = [num2str(E_min) '-' num2str(E_max)];
+hold on
+end
+hold on
+ylabel('$T$ (K)','Interpreter','Latex')
+xlabel('$P_{abs} \: (\mathrm{W.cm^{-2})}$','Interpreter','Latex')
+box on
+xlim([0 P_abs(end)])
+% ylim([0 inf])
+set(gca,'Fontsize',16)
+set(gca,'XMinorTick','on','YMinorTick','on')
+set(gcf,'color','w')
+legend(leg)
+box on
+
+E_min = E_min_init-0.03;
+E_max = E_max_init-0.03;
+figure
+for i = 1:7
+E_min = E_min + Inv_diff;
+E_max = E_max + Inv_diff;
+semilogx(P_abs, delta_mu_log(i,:),'LineWidth',2);
+leg{i} = [num2str(E_min) '-' num2str(E_max)];
+hold on
+end
+hold on
+ylabel('$\Delta\mu $ (eV)','Interpreter','Latex')
+xlabel('$P_{abs} \: (\mathrm{W.cm^{-2})}$','Interpreter','Latex')
+box on
+xlim([0 P_abs(end)])
+ylim([0 inf])
+set(gca,'Fontsize',16)
+set(gca,'XMinorTick','on','YMinorTick','on')
+set(gcf,'color','w')
+legend(leg)
+box on
+% 
+% 
+% figure
+% for i1=1:length(Int)
+%     semilogy(E, ratio{i1},'--','color', colors(i1,:),'linewidth',2)
+%     hold on
+%     semilogy(E,dmu_T_ratio(T_log_raw(i1), dmu_log(i1), mu_ref_log(2),E,T_L,m_e,m_h,Eg,D),'color', colors(i1,:))
+%     hold on
+% end
+% xlim(E_plot)
+% xlabel('$E \: \mathrm{(eV)}$','Interpreter','Latex')
+% ylabel('$\phi_n/\phi_1$','Interpreter','Latex')
+% box on
+% set(gca,'Fontsize',16)
+% set(gca,'XMinorTick','on','YMinorTick','on')
+% set(gcf,'color','w')
+% box on
+% 
+% figure
+% for i1=1:length(Int)
+%     plot(E, ratio{i1},'--','color', colors(i1,:),'linewidth',2)
+%     hold on
+%     plot(E,dmu_T_ratio(T_log_raw(i1), dmu_log(i1), mu_ref_log(2),E,T_L,m_e,m_h,Eg,D),'color', colors(i1,:))
+%     hold on
+% end
+% xlim([1.45 1.56])
+% xlabel('$E \: \mathrm{(eV)}$','Interpreter','Latex')
+% ylabel('$\phi_n/\phi_1$','Interpreter','Latex')
+% box on
+% set(gca,'Fontsize',16)
+% set(gca,'XMinorTick','on','YMinorTick','on')
+% set(gcf,'color','w')
+% box on
+% 
 

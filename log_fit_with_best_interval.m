@@ -15,7 +15,14 @@ m_e=0.067; %Effective mass of electrons, relative to the free electron mass
 m_h=0.47; %Effective mass of holes, relative to the free electron mass
 D=3; %Dimensionality of bulk
 
+
+% % Get the value of the gap with the low intensity experience (no heat)
+% Eg0 = 1.52; %eV at 0K
+% alpha = 8.871*10^(-4); % eV/kelvin
+% beta = 572; %Kelvin
+
 %% Choose the sample
+
 %200nm
 % day='2019_07_05';
 % sample='1873_1_4';
@@ -23,10 +30,10 @@ D=3; %Dimensionality of bulk
 % laser=532;
 
 %100nm
-day='2019_12_10';
-sample='1927_2_1';
-detector='vis';
-laser=532;
+% day='2019_12_10';
+% sample='1927_2_1';
+% detector='vis';
+% laser=532;
 
 %50nm
 % day='2019_12_10';
@@ -35,10 +42,10 @@ laser=532;
 % laser=532;
 
 %20nm
-% day='2019_07_05';
-% sample='1872_1_4';
-% detector='vis';
-% laser=532;
+day='2019_07_05';
+sample='1872_1_4';
+detector='vis';
+laser=532;
 
 [data, power, spot_surface, Int, E]=load_data_PL(day,sample,detector,laser);
 
@@ -111,8 +118,8 @@ switch day
                 Int(points_removed)=[];
                 power(points_removed)=[]; %power is in W.cm^-2
                 
-                E_min = 1.49;
-                E_max = 1.54;
+                E_min = 1.45;
+                E_max = 1.56;
                 E_ratio = 1.51;
                 E_plot=[1.35 1.6];
                 Eg = 1.424; %Band gap (eV)
@@ -140,8 +147,8 @@ switch day
                 Int(points_removed)=[];
                 power(points_removed)=[]; %power is in W.cm^-2
                 
-                E_min = 1.47;
-                E_max = 1.54;
+                E_min = 1.43;
+                E_max = 1.58;
                 E_plot=[1.35 1.6];
                 Eg = 1.424; %Band gap (eV)
                 
@@ -151,8 +158,8 @@ switch day
                 Int(points_removed)=[];
                 power(points_removed)=[]; %power is in W.cm^-2
                 
-                E_min = 1.47;
-                E_max = 1.57;
+                E_min = 1.45;
+                E_max = 1.59;
                 E_plot=[1.35 1.6];
                 Eg = 1.424; %Band gap (eV)                      
         end
@@ -162,17 +169,12 @@ end
 colors=lines(length(Int));
 P_inc=power/(1000*spot_surface); % incident power (W.cm^-2)
 E_laser=h*c/(q*laser*1e-9); %Energy of the laser (eV)
-
-%% Consider different interval range
-E_mid = (E_min + E_max)/2;
-[radius_init,step] = radius_step(E_min,E_max);
-radius = radius_init;
-for i = [1:step]
-    E_min = E_mid - radius;
-    E_max = E_mid + radius;
-    radius = radius + 0.01;
-    
 %% Calculate the ratios with band filling
+%Parameter intialization and limits
+% T=zeros(size(Int));
+% mu=zeros(size(Int));
+% mu_ref=zeros(size(Int));
+
 x_init=[T_L, 1.2, 1.2];
 x_min=[T_L-10, 0.8, 0.8];
 x_max=[500, Eg, Eg];
@@ -193,6 +195,11 @@ end
 T_init(1)=T_L;
 mu_init(1)=NaN;
 mu_ref_init(1)=NaN;
+
+
+
+
+
 %% Find the optimal mu_1
 
 mu_ref_vec=linspace(min(mu_ref_init),max(mu_ref_init));
@@ -208,27 +215,25 @@ end
 res_sol_sum=(sum(res_sol,1));
 [min_res,idx_res]=min(res_sol_sum);
 
-mu_ref(i)=mu_ref_vec(idx_res);
+mu_ref=mu_ref_vec(idx_res);
 
 for i1=2:length(Int)
-    T(i,i1)=x_sol{i1,idx_res}(1);
-    mu(i,i1)=x_sol{i1,idx_res}(2);
+    T(i1)=x_sol{i1,idx_res}(1);
+    mu(i1)=x_sol{i1,idx_res}(2);
 end
-T(i,1)=T_L;
-mu(i,1)=mu_ref(i);
+T(1)=T_L;
+mu(1)=mu_ref;
 
-
-%% log fit
+%% Log ratio fit
 for i3 = 2:length(Int)
     y = log(ratio{1,i3}(Einv(E_min):Einv(E_max)));
     x = E(Einv(E_min):Einv(E_max));
     modelfun = @(a,x) log(dmu_T_ratio(a(1), a(2), a(3),x,T_L,m_e,m_h,Eg,D));
     options = statset('FunValCheck','off','DerivStep',10^-13,'robust','on');
-    beta0_log_init{i3} = [T(i,i3);mu(i,i3)-mu_ref(i);mu_ref(i)];
-%     beta0_dmu_init{i3} = [T(i);mu(i)-mu_ref_init(i);mu_ref_init(i)];
+    beta0_log_init{i3} = [T(i3);mu(i3)-mu_ref;mu_ref]; %Use the previous data as initial guess
     [beta_log_init{i3},r,J,cov] = nlinfit(x,y,modelfun,beta0_log_init{i3},options);
-    T_log_init(i3) = beta_log_init{i3}(1,1);
-    delta_mu_log_init(i3) = beta_log_init{i3}(2,1);
+    T_log_init(i3) = beta_log_init{i3}(1,1);% Initial Temperature
+    delta_mu_log_init(i3) = beta_log_init{i3}(2,1);% Initial delta_mu
     mu_log_init(i3) = beta_log_init{i3}(2,1)+beta_log_init{i3}(3,1);
     mu_ref_log_init(i3) = beta_log_init{i3}(3,1);
     ci_log_init{i3} = nlparci(beta_log_init{i3},r,'covar',cov);
@@ -243,23 +248,28 @@ T_log_init(1)=T_L;
 
 %% mu_ref interval error
 Inv_diff = 0.01; % Fit the interval from -0.01 to +0.01
-E_min_muref = E_min-0.02;
-E_max_muref = E_max-0.02;
-for j = 1:3
-    E_min_muref = E_min_muref + Inv_diff;
-    E_max_muref = E_max_muref + Inv_diff;
+E_min_init = E_min;
+E_max_init = E_max;
+E_min = E_min_init-0.02;
+E_max = E_max_init-0.02;
+for i = 1:3
+    E_min = E_min + Inv_diff;
+    E_max = E_max + Inv_diff;
     for i4 = 2:length(Int)
-    y = log(ratio{1,i4}(Einv(E_min_muref):Einv(E_max_muref)));
-    x = E(Einv(E_min_muref):Einv(E_max_muref));
+    y = log(ratio{1,i4}(Einv(E_min):Einv(E_max)));
+    x = E(Einv(E_min):Einv(E_max));
     modelfun = @(a,x) log(dmu_T_ratio(a(1), a(2), a(3),x,T_L,m_e,m_h,Eg,D));
     options = statset('FunValCheck','off','DerivStep',10^-12,'robust','on');
     beta0_log_inv{i4} = [T_log_init(i4);delta_mu_log_init(i4);mu_ref_log_init(i4)]; % Use the obtained logarithm results
     [beta_log_inv{i4},r,J,cov] = nlinfit(x,y,modelfun,beta0_log_inv{i4},options);
-    mu_ref_log_inv(j,i4) = beta_log_inv{i4}(3,1);
-    ci_log_inv{j,i4} = nlparci(beta_log_inv{i4},r,'covar',cov);
-    cj_log_inv{j,i4} = nlparci(beta_log_inv{i4},r,'Jacobian',J);
+%     T_log_inv(i,i4) = beta_log_inv{i4}(1,1);
+%     delta_mu_log_inv(i,i4) = beta_log_inv{i4}(2,1);
+    mu_ref_log_inv(i,i4) = beta_log_inv{i4}(3,1);
+%     mu_nfit_log_inv(i,i4) = beta_log_inv{i4}(2,1)+beta_log_inv{i4}(3,1);
+    ci_log_inv{i,i4} = nlparci(beta_log_inv{i4},r,'covar',cov);
+    cj_log_inv{i,i4} = nlparci(beta_log_inv{i4},r,'Jacobian',J);
     end
-    mu_ref_log_inv(j,1) = NaN;
+    mu_ref_log_inv(i,1) = NaN;
 end
     
 
@@ -274,66 +284,72 @@ for i5=2:length(Int)
     sigma_inverse(i5) = 1/mu_ref_log_sigma(i5);
 end
  
- mu_ref_log(i) = sum(mu_ref_top)./sum((sigma_inverse.^2));%Reverse-variance weighting method
- var_mu_ref_log(i) = 2.*sqrt(1./sum((sigma_inverse.^2)));% 95% confidence interval
-
- 
-T_log_init(1)=T_L;
+ mu_ref_log = sum(mu_ref_top)./sum((sigma_inverse.^2));%Reverse-variance weighting method
+ var_mu_ref_log = 2.*sqrt(1./sum((sigma_inverse.^2)));% 95% confidence interval
 
 
+E_min = E_min_init;
+E_max = E_max_init;
 %% Refit with obtained optimal mu_ref
 for i6 = 1:length(Int)
     y = log(ratio{1,i6}(Einv(E_min):Einv(E_max)));
     x = E(Einv(E_min):Einv(E_max));
-    modelfun = @(a,x) log(dmu_T_ratio(a(1), a(2), mu_ref_log(i),x,T_L,m_e,m_h,Eg,D));
-    options = statset('FunValCheck','off','DerivStep',10^-12,'robust','on','MaxIter',3000);
-    beta0_log{i6} = [T_log_init(i6);delta_mu_log_init(i6)];
+    modelfun = @(a,x) log(dmu_T_ratio(a(1), a(2), mu_ref_log,x,T_L,m_e,m_h,Eg,D));
+    options = statset('FunValCheck','off','DerivStep',10^-12,'robust','on');
+    beta0_log{i6} = [T_log_init(i6);delta_mu_log_init(i6)];% Take the results of last step as initial guess, and fix mu_ref
     [beta_log{i6},r,J,cov] = nlinfit(x,y,modelfun,beta0_log{i6},options);
-    T_log(i,i6) = beta_log{i6}(1,1);
-    delta_mu_log(i,i6) = beta_log{i6}(2,1);
-    mu_nfit_log(i,i6) = beta_log{i6}(2,1)+mu_ref_log(i);
-    ci_log{i,i6} = nlparci(beta_log{i6},r,'covar',cov);
-    cj_log{i,i6} = nlparci(beta_log{i6},r,'Jacobian',J);
-    T_error_log(i,i6) = (ci_log{i,i6}(1,2)-ci_log{i,i6}(1,1))/2;
-    delta_mu_error_log(i,i6) = (ci_log{i,i6}(2,2)-ci_log{i,i6}(2,1))/2;
+    T_log(i6) = beta_log{i6}(1,1); % Temperature
+    delta_mu_log(i6) = beta_log{i6}(2,1); % Delta_mu
+    mu_log(i6) = beta_log{i6}(2,1)+mu_ref_log;
+    ci_log{i6} = nlparci(beta_log{i6},r,'covar',cov);
+    cj_log{i6} = nlparci(beta_log{i6},r,'Jacobian',J);
+    T_error_log(i6) = (ci_log{i6}(1,2)-ci_log{i6}(1,1))/2; % fitting error of temperature
+    delta_mu_error_log(i6) = (ci_log{i6}(2,2)-ci_log{i6}(2,1))/2; % fitting error of Delta_mu
 end
 
+
+%% Plus Minus interval fitting
+Inv_diff = 0.01; % Fit the interval from -0.01 to +0.01
+E_min = E_min_init-0.02;
+E_max = E_max_init-0.02;
+for i = 1:3
+    E_min = E_min + Inv_diff;
+    E_max = E_max + Inv_diff;
+    mu_ref_log_err = [mu_ref_log+var_mu_ref_log;mu_ref_log;mu_ref_log-var_mu_ref_log];
+    for i7 = 1:length(Int)
+    y = log(ratio{1,i7}(Einv(E_min):Einv(E_max)));
+    x = E(Einv(E_min):Einv(E_max));
+    modelfun = @(a,x) log(dmu_T_ratio(a(1), a(2), mu_ref_log_err(i),x,T_L,m_e,m_h,Eg,D));
+    options = statset('FunValCheck','off','DerivStep',10^-12,'robust','on');
+    beta0_log_inv{i7} = [T_log_init(i7);delta_mu_log_init(i7)]; % Use the obtained logarithm results
+    [beta_log_inv{i7},r,J,cov] = nlinfit(x,y,modelfun,beta0_log_inv{i7},options);
+    T_log_inv(i,i7) = beta_log_inv{i7}(1,1);
+    delta_mu_log_inv(i,i7) = beta_log_inv{i7}(2,1);
+%     mu_nfit_log_inv(i,i7) = beta_log_inv{i7}(2,1)+beta_log_inv{i7}(3,1);
+    ci_log_inv{i,i7} = nlparci(beta_log_inv{i7},r,'covar',cov);
+    cj_log_inv{i,i7} = nlparci(beta_log_inv{i7},r,'Jacobian',J);
+    end
 end
 
-%% Error on interval limits
-% for i4 = 1:length(Int)
-%     y = log(ratio{1,i4}(Einv(E_min):Einv(E_max)));
-%     x = E(Einv(E_min):Einv(E_max));
-%     modelfun = @(a,x) log(dmu_T_ratio(T_log(5,i4), delta_mu_log(5,i4), mu_ref_log(i),x,T_L,m_e,m_h,Eg,D));
-%     options = statset('FunValCheck','off','DerivStep',10^-12,'robust','on','MaxIter',3000);
-%     beta0_log{i4} = [T_log_init(i4);delta_mu_log_init(i4)];
-%     [beta_log{i4},r,J,cov] = nlinfit(x,y,modelfun,beta0_log{i4},options);
-%     T_log(i,i4) = beta_log{i4}(1,1);
-%     delta_mu_log(i,i4) = beta_log{i4}(2,1);
-%     mu_nfit_log(i,i4) = beta_log{i4}(2,1)+mu_ref_log(i);
-%     ci_log{i,i4} = nlparci(beta_log{i4},r,'covar',cov);
-%     cj_log{i,i4} = nlparci(beta_log{i4},r,'Jacobian',J);
-%     T_error_log(i,i4) = (ci_log{i,i4}(1,2)-ci_log{i,i4}(1,1))/2;
-%     delta_mu_error_log(i,i4) = (ci_log{i,i4}(2,2)-ci_log{i,i4}(2,1))/2;
-% end
 %% Error calculation
-% for i=1:length(Int)
-%     T_log_raw(i) = T_log(2,i);
-%     T_plus_log(i) = T_log(3,i);
-%     T_min_log(i) = T_log(1,i);
-%     delta_T_interval_log(i) = max(abs(T_plus_log(i)-T_log_raw(i)),abs(T_log_raw(i)-T_min_log(i)));
-%     delta_T_init(i) = T_error_log(2,i);
-%     delta_T_log(i) = delta_T_interval_log(i)+delta_T_init(i);
-%     
-%     dmu_log(i) = delta_mu_log(2,i);
-%     dmu_plus_log(i) = delta_mu_log(3,i);
-%     dmu_min_log(i) = delta_mu_log(1,i);
-%     delta_dmu_interval_log(i) = max(abs(dmu_plus_log(i)-dmu_log(i)),abs(dmu_log(i)-dmu_min_log(i)));
-%     delta_mu_log_init(i) = delta_mu_error_log(2,i);
-%     delta_dmu_log(i) = delta_dmu_interval_log(i)+delta_mu_log_init(i);
-% end
-
-
+for i=1:length(Int)
+    T_log_raw(i) = T_log_inv(2,i);
+    T_plus_log(i) = T_log_inv(3,i);
+    T_min_log(i) = T_log_inv(1,i);
+    delta_T_interval_log(i) = max(abs(T_plus_log(i)-T_log_raw(i)),abs(T_log_raw(i)-T_min_log(i)));% interval error
+    delta_T_init(i) = T_error_log(i); % fitting error
+    delta_T_log(i) = delta_T_interval_log(i)+delta_T_init(i); % total error
+    
+    dmu_log(i) = delta_mu_log_inv(2,i);
+    dmu_plus_log(i) = delta_mu_log_inv(3,i);
+    dmu_min_log(i) = delta_mu_log_inv(1,i);
+    delta_dmu_interval_log(i) = max(abs(dmu_plus_log(i)-dmu_log(i)),abs(dmu_log(i)-dmu_min_log(i))); % interval error
+    delta_mu_log_init(i) = delta_mu_error_log(i);% fitting error
+    delta_dmu_log(i) = delta_mu_log_init(i)+delta_dmu_interval_log(i);% total error
+    
+    mu_log_error(i) = sqrt(var_mu_ref_log^2+delta_dmu_log(i)^2);
+end
+mu_log_error(1) = var_mu_ref_log;
 %% Absorbed power
 
 A_barrier_E=Abs_layer_E(1,:)+Abs_layer_E(3,:); % absorption in the barriers
@@ -347,158 +363,133 @@ A_laser=A_laser_GaAs+Barriers_to_GaAs*A_laser_barriers; % Equivalent absorptivit
 P_abs=A_laser*P_inc; %Equivalent absorbed power in the absorber
 P_gen=(P_abs/thickness)*(1-Eg/E_laser);
 
-% % Errors
-% delta_power_rel=0.1; %relative error on power
-% delta_spot_surface_rel=0.2; %relative error on spot_surface
-% delta_A_GaAs=max(abs(A_laser_GaAs_plus1-A_laser_GaAs),abs(A_laser_GaAs-A_laser_GaAs_min1));
-% delta_A_laser_rel=(delta_A_GaAs+0.1*A_laser_barriers)/A_laser; %relative error on absorptivity
-% delta_P_abs_rel=sqrt(delta_power_rel^2+delta_spot_surface_rel^2+delta_A_laser_rel^2); %relative error on the absorbed power: systematic error
-% delta_P_gen_rel=delta_P_abs_rel;
-%% Error propagation
+% Errors
+delta_power_rel=0.1; %relative error on power
+delta_spot_surface_rel=0.2; %relative error on spot_surface
+delta_A_GaAs=max(abs(A_laser_GaAs_plus1-A_laser_GaAs),abs(A_laser_GaAs-A_laser_GaAs_min1));
+delta_A_laser_rel=(delta_A_GaAs+0.1*A_laser_barriers)/A_laser; %relative error on absorptivity
+delta_P_abs_rel=sqrt(delta_power_rel^2+delta_spot_surface_rel^2+delta_A_laser_rel^2); %relative error on the absorbed power: systematic error
+delta_P_gen_rel=delta_P_abs_rel;
 
-% % Calculate Q
-% [Q_fit_raw,delta_Q_fit_raw]=linfitxy([T_raw-T_L],[P_abs],[delta_T_raw],zeros(length(T_raw),1));
-% Q_raw=Q_fit_raw(1);
-% Q0=Q_fit_raw(2);
-% delta_Q_fit_raw_rel=delta_Q_fit_raw(1)/Q_fit_raw(1);
-% delta_Q_raw_rel=sqrt(delta_P_abs_rel^2+delta_Q_fit_raw_rel^2);
-% delta_Q_raw=Q_raw*delta_Q_raw_rel;
 
-% Modify Q_raw into Q
-% delta_T_0=sqrt(delta_T_raw(1)^2+(P_abs(1)/Q_raw)^2*(delta_P_abs_rel^2+delta_Q_raw_rel^2));
-% T(1)=T_L+P_abs(1)/Q_raw;
-% delta_T(1)=sqrt(delta_T_0^2+(P_abs(1)/Q_raw)^2*(delta_P_abs_rel^2+delta_Q_raw_rel^2));
+%% Linear fit
+
+switch sample
+    case '1873_1_4'
+        T_interv=[3:length(T)];
+        mu_interv=[1:5];
+    case '1927_2_1'
+        T_interv=[3:length(T)];
+        mu_interv=[1:3];
+    case '1926_2_5'
+        T_interv=[2:length(T)];
+        mu_interv=[1:4];
+    case '1872_1_4'
+        T_interv=[2:length(T)];
+        mu_interv=[1:4];
+    otherwise
+        T_interv=[1:length(T)];
+        mu_interv=[1:length(mu)];
+end
+
+p_dmu1 = polyfit(T_log(T_interv)-T_L,P_abs(T_interv),1); %Temperature fit
+Q_dmu_nfit = p_dmu1(1);
+deltaT0_dmu_nift = p_dmu1(2);
+deltaT_dmu_nfitdata = deltaT0_dmu_nift + Q_dmu_nfit*(T_log-T_L);
+
+p_dmu2 = polyfit(log(P_abs(mu_interv)),delta_mu_log(mu_interv),1); %mu fit
+mu_slope_dmu_nfit = p_dmu2(1);
+mu_ref_dmu_nfit0 = p_dmu2(2);
+mu_dmu_nfitdata = mu_ref_dmu_nfit0+mu_slope_dmu_nfit*log(P_abs);
+
+p_dmu3 = polyfit(log(P_abs(mu_interv)),mu_log(mu_interv),1); %mu fit
+mu_slope_dmu = p_dmu3(1);
+mu_ref_dmu = p_dmu3(2);
+mu_nfitdata = mu_ref_dmu+mu_slope_dmu*log(P_abs);
+
+delta_Q_rel=delta_P_abs_rel;
+delta_Q=Q_dmu_nfit*delta_Q_rel;
 %% Plots
 
-% figure
-% title('f(deltamu);initial set')
-% semilogx(P_abs, mu_ref_nfit_dmu_init(i),'LineWidth',3)
-% ylabel('$\mu_{ref}$ (eV)','Interpreter','Latex')
-% xlabel('$P_{abs} \: (\mathrm{W.cm^{-2})}$','Interpreter','Latex')
-% box on
-% xlim([0 P_abs(end)])
-% % ylim([0 inf])
-% set(gca,'Fontsize',16)
-% set(gca,'XMinorTick','on','YMinorTick','on')
-% set(gcf,'color','w')
-% box on
-
-% Linear fit
-% p_dmu1 = polyfit(T_log_raw-T_L,P_abs,1); %Temperature fit
-% Q_dmu_nfit = p_dmu1(1);
-% deltaT0_dmu_nift = p_dmu1(2);
-% deltaT_dmu_nfitdata = deltaT0_dmu_nift + Q_dmu_nfit*(T_log_raw-T_L);
-% 
-% p_dmu2 = polyfit(log(P_abs),dmu_log,1); %mu fit
-% mu_slope_dmu_nfit = p_dmu2(1);
-% mu_ref_dmu_nfit0 = p_dmu2(2);
-% mu_dmu_nfitdata = mu_ref_dmu_nfit0+mu_slope_dmu_nfit*log(P_abs);
-% 
-% 
-% 
-% 
-% % Plots
-% figure
-% % title('f(\Delta\mu)')
-% hold on
-% % scatter(P_abs, T_dmu-T_L,100,'x','MarkerEdgeColor', colors(1,:),'LineWidth',3);
-% errorbar(P_abs,T_log_raw-T_L,delta_T_log,delta_T_log,[],[], '+', 'markerSize',10,'color', colors(1,:),'LineWidth', 3);
-% plot(deltaT_dmu_nfitdata,T_log_raw-T_L,'--','color', colors(2,:),'LineWidth', 2);
-% ylabel('$T-T_L$ (K)','Interpreter','Latex')
-% xlabel('$P_{abs} \: (\mathrm{W.cm^{-2})}$','Interpreter','Latex')
-% box on
-% xlim([0 P_abs(end)])
-% ylim([0 inf])
-% set(gca,'Fontsize',16)
-% set(gca,'XMinorTick','on','YMinorTick','on')
-% set(gcf,'color','w')
-% box on
-% % 
-% % 
-% % 
-% figure
-% % title('f(\Delta\mu)')
-% % scatter(P_abs, dmu_dmu,200,'x','MarkerEdgeColor', colors(1,:),'LineWidth',3);
-% errorbar(P_abs,dmu_log,delta_dmu_log,delta_dmu_log,[],[], '+', 'markerSize',10,'color', colors(1,:),'LineWidth', 3);
-% hold on
-% plot(P_abs, mu_dmu_nfitdata,'--','color', colors(2,:),'LineWidth',2)
-% axis
-% ylabel('$\Delta\mu$ (eV)','Interpreter','Latex')
-% xlabel('$P_{abs} \: (\mathrm{W.cm^{-2})}$','Interpreter','Latex')
-% box on
-% xlim([P_abs(1) P_abs(end)])
-% ylim([0 inf])
-% set(gca,'Fontsize',16)
-% set(gca,'XMinorTick','on','YMinorTick','on')
-% set(gca,'XScale','log')
-% set(gcf,'color','w')
-% 
-% mu_ref_dmu_init = mu_ref_log(2)-var_mu_ref_log(2);
-% for i=[1:3]
-%     mu_r(i) = mu_ref_dmu_init;
-%     mu_ref_dmu_init = mu_ref_dmu_init+var_mu_ref_log(2);
-% figure
-% for i1=1:length(Int)
-%     plot(E, ratio{i1},'--','color', colors(i1,:),'linewidth',2)
-%     hold on
-%     plot(E,dmu_T_ratio(T_log_raw(i1), dmu_log(i1), mu_r(i),E,T_L,m_e,m_h,Eg,D),'color', colors(i1,:))
-%     hold on
-% end
-% xlim([1.45 1.6])
-% xlabel('$E \: \mathrm{(eV)}$','Interpreter','Latex')
-% ylabel('$\phi_n/\phi_1$','Interpreter','Latex')
-% box on
-% set(gca,'Fontsize',16)
-% set(gca,'XMinorTick','on','YMinorTick','on')
-% set(gcf,'color','w')
-% box on
-% end
-
-%% Error comparison
-radius = radius_init;
 figure
-for i = 1:step
-    E_min = E_mid - radius;
-    E_max = E_mid + radius;
-    radius = radius + 0.01;
-    T_error_log(i,1) = NaN;
-    plot(P_abs, T_error_log(i,:),'LineWidth',2);
-    leg{i} = [num2str(E_min) '-' num2str(E_max)];
-    hold on
-end
+semilogx(P_abs, mu_ref_log_init,'LineWidth',3)
 hold on
-ylabel('$T$ error (K)','Interpreter','Latex')
+errorbar(P_abs,mu_ref_log_init,2*mu_ref_log_sigma,2*mu_ref_log_sigma,[],[], '+', 'markerSize',10,'color', colors(2,:),'LineWidth', 3);
+ylabel('$\mu_{ref}$ (eV)','Interpreter','Latex')
 xlabel('$P_{abs} \: (\mathrm{W.cm^{-2})}$','Interpreter','Latex')
 box on
 xlim([0 P_abs(end)])
-ylim([0 0.7])
 % ylim([0 inf])
 set(gca,'Fontsize',16)
 set(gca,'XMinorTick','on','YMinorTick','on')
 set(gcf,'color','w')
-legend(leg,'location','southeast')
 box on
 
-radius = radius_init;
 figure
-for i = 1:step
-    E_min = E_mid - radius;
-    E_max = E_mid + radius;
-    radius = radius + 0.01;
-    plot(P_abs, delta_mu_error_log(i,:),'LineWidth',2);
-    leg{i} = [num2str(E_min) '-' num2str(E_max)];
-    hold on
-end
+errorbar(P_abs,delta_mu_log,delta_dmu_log,delta_dmu_log,[],[], '+', 'markerSize',10,'color', colors(1,:),'LineWidth', 3);
 hold on
-ylabel('$\Delta\mu$ error (eV)','Interpreter','Latex')
+plot(P_abs, mu_dmu_nfitdata,'--','color', colors(2,:),'LineWidth',2)
+axis
+ylabel('$\Delta\mu$ (eV)','Interpreter','Latex')
+xlabel('$P_{abs} \: (\mathrm{W.cm^{-2})}$','Interpreter','Latex')
+box on
+xlim([P_abs(1) P_abs(end)])
+% ylim([0 inf])
+set(gca,'Fontsize',16)
+set(gca,'XMinorTick','on','YMinorTick','on')
+set(gca,'XScale','log')
+set(gcf,'color','w')
+
+figure
+hold on
+errorbar(P_abs,T_log-T_L,delta_T_log,delta_T_log,[],[], '+', 'markerSize',10,'color', colors(1,:),'LineWidth', 3);
+plot(deltaT_dmu_nfitdata,T_log_raw-T_L,'--','color', colors(2,:),'LineWidth', 2);
+ylabel('$T-T_L$ (K)','Interpreter','Latex')
 xlabel('$P_{abs} \: (\mathrm{W.cm^{-2})}$','Interpreter','Latex')
 box on
 xlim([0 P_abs(end)])
-ylim([0 0.0003])
+ylim([0 inf])
+set(gca,'Fontsize',16)
+set(gca,'XMinorTick','on','YMinorTick','on')
+set(gcf,'color','w')
+box on
+
+figure
+errorbar(P_abs,mu_log,mu_log_error,mu_log_error,[],[], '+', 'markerSize',10,'color', colors(1,:),'LineWidth', 3);
+hold on
+plot(P_abs, mu_nfitdata,'--','color', colors(2,:),'LineWidth',2)
+axis
+ylabel('$\mu$ (eV)','Interpreter','Latex')
+xlabel('$P_{abs} \: (\mathrm{W.cm^{-2})}$','Interpreter','Latex')
+box on
+xlim([P_abs(1) P_abs(end)])
+% ylim([0 inf])
+set(gca,'Fontsize',16)
+set(gca,'XMinorTick','on','YMinorTick','on')
+set(gca,'XScale','log')
+set(gcf,'color','w')
+
+x = P_abs;
+y1 = (mu_ref_log+var_mu_ref_log).*ones(length(x));
+y2 = (mu_ref_log-var_mu_ref_log).*ones(length(x));
+figure
+hold on
+hold all
+errorbar(P_abs,mu_ref_log_init,2*mu_ref_log_sigma,2*mu_ref_log_sigma,[],[], '+', 'markerSize',10,'color', colors(2,:),'LineWidth', 3);
+hold on
+plot(x, y1,'HandleVisibility','off');
+plot(x, y2,'HandleVisibility','off');
+yline(mu_ref_log,'--','color','m')
+X=[x,fliplr(x)];               
+Y=[y1,fliplr(y2)];
+fill(X,Y,'b','FaceAlpha',0.1,'EdgeAlpha',0);
+ylabel('$\mu_{ref}$ (eV)','Interpreter','Latex')
+xlabel('$P_{abs} \: (\mathrm{W.cm^{-2})}$','Interpreter','Latex')
+box on
+xlim([0 P_abs(end)])
 % ylim([0 inf])
 set(gca,'Fontsize',16)
 set(gca,'XMinorTick','on','YMinorTick','on')
 set(gcf,'color','w')
-legend(leg,'location','southeast')
 box on
-
+legend('initial \mu_{ref} error','optimal \mu_{ref}','\mu_{ref} error','location','SouthEast')
